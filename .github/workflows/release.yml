@@ -28,7 +28,8 @@ jobs:
           else
             TAG="build-${{ github.run_number }}"
           fi
-          APP="$(echo "${{ github.event.repository.name }}" | tr -c 'A-Za-z0-9._-\n' '-')"
+          NAME="${{ github.event.repository.name }}"
+          APP="${NAME//[^A-Za-z0-9._-]/-}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "app=$APP" >> "$GITHUB_OUTPUT"
 
@@ -87,8 +88,11 @@ jobs:
 
           # Find the main package (root first, otherwise first "main" found)
           PKG="."
-          if ! go list -f '{{.Name}}' . 2>/dev/null | grep -qx main; then
-            PKG="$(go list -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./... | head -n1)"
+          ROOT_NAME="$(go list -f '{{.Name}}' . 2>/dev/null || true)"
+          if [ "$ROOT_NAME" != "main" ]; then
+            ALL_MAINS="$(go list -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./... 2>/dev/null || true)"
+            ALL_MAINS="$(echo "$ALL_MAINS" | sed '/^$/d')"
+            PKG="${ALL_MAINS%%$'\n'*}"
           fi
           [ -n "$PKG" ] || { echo "No main package found"; exit 1; }
           echo "Building package: $PKG"
